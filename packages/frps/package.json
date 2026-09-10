@@ -1,0 +1,33 @@
+{
+  "name": "@pkgship/frps",
+  "version": "0.71.0",
+  "description": "frp server binary for all platforms",
+  "bin": {
+    "frps": "bin/frps.js"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "optionalDependencies": {
+    "@pkgship/frps-linux-amd64": "0.71.0",
+    "@pkgship/frps-linux-arm64": "0.71.0",
+    "@pkgship/frps-linux-arm": "0.71.0",
+    "@pkgship/frps-linux-arm-hf": "0.71.0",
+    "@pkgship/frps-linux-riscv64": "0.71.0",
+    "@pkgship/frps-linux-loong64": "0.71.0",
+    "@pkgship/frps-darwin-amd64": "0.71.0",
+    "@pkgship/frps-darwin-arm64": "0.71.0",
+    "@pkgship/frps-windows-amd64": "0.71.0",
+    "@pkgship/frps-windows-arm64": "0.71.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/fatedier/frp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pkgship/pkg-frp.git"
+  }
+}

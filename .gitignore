@@ -1,0 +1,9 @@
+node_modules/
+*.tgz
+.tmp/
+packages/*/frpc
+packages/*/frpc.exe
+packages/*/frps
+packages/*/frps.exe
+packages/*/.frpc-version
+packages/*/.frps-version

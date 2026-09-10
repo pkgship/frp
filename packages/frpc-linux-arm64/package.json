@@ -1,0 +1,23 @@
+{
+  "name": "@pkgship/frpc-linux-arm64",
+  "version": "0.71.0",
+  "description": "frpc-linux-arm64",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "frpc"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/fatedier/frp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pkgship/pkg-frp.git"
+  }
+}

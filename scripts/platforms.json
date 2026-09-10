@@ -1,0 +1,162 @@
+[
+  {
+    "dir": "packages/frpc-linux-amd64",
+    "pkg": "@pkgship/frpc-linux-amd64",
+    "bin": "frpc",
+    "asset": "frp_{VERSION}_linux_amd64.tar.gz",
+    "os": ["linux"],
+    "cpu": ["x64"]
+  },
+  {
+    "dir": "packages/frpc-linux-arm64",
+    "pkg": "@pkgship/frpc-linux-arm64",
+    "bin": "frpc",
+    "asset": "frp_{VERSION}_linux_arm64.tar.gz",
+    "os": ["linux"],
+    "cpu": ["arm64"]
+  },
+  {
+    "dir": "packages/frpc-linux-arm",
+    "pkg": "@pkgship/frpc-linux-arm",
+    "bin": "frpc",
+    "asset": "frp_{VERSION}_linux_arm.tar.gz",
+    "os": ["linux"],
+    "cpu": ["arm"]
+  },
+  {
+    "dir": "packages/frpc-linux-arm-hf",
+    "pkg": "@pkgship/frpc-linux-arm-hf",
+    "bin": "frpc",
+    "asset": "frp_{VERSION}_linux_arm_hf.tar.gz",
+    "os": ["linux"],
+    "cpu": ["arm"]
+  },
+  {
+    "dir": "packages/frpc-linux-riscv64",
+    "pkg": "@pkgship/frpc-linux-riscv64",
+    "bin": "frpc",
+    "asset": "frp_{VERSION}_linux_riscv64.tar.gz",
+    "os": ["linux"],
+    "cpu": ["riscv64"]
+  },
+  {
+    "dir": "packages/frpc-linux-loong64",
+    "pkg": "@pkgship/frpc-linux-loong64",
+    "bin": "frpc",
+    "asset": "frp_{VERSION}_linux_loong64.tar.gz",
+    "os": ["linux"],
+    "cpu": ["loong64"]
+  },
+  {
+    "dir": "packages/frpc-darwin-amd64",
+    "pkg": "@pkgship/frpc-darwin-amd64",
+    "bin": "frpc",
+    "asset": "frp_{VERSION}_darwin_amd64.tar.gz",
+    "os": ["darwin"],
+    "cpu": ["x64"]
+  },
+  {
+    "dir": "packages/frpc-darwin-arm64",
+    "pkg": "@pkgship/frpc-darwin-arm64",
+    "bin": "frpc",
+    "asset": "frp_{VERSION}_darwin_arm64.tar.gz",
+    "os": ["darwin"],
+    "cpu": ["arm64"]
+  },
+  {
+    "dir": "packages/frpc-windows-amd64",
+    "pkg": "@pkgship/frpc-windows-amd64",
+    "bin": "frpc.exe",
+    "asset": "frp_{VERSION}_windows_amd64.zip",
+    "os": ["win32"],
+    "cpu": ["x64"]
+  },
+  {
+    "dir": "packages/frpc-windows-arm64",
+    "pkg": "@pkgship/frpc-windows-arm64",
+    "bin": "frpc.exe",
+    "asset": "frp_{VERSION}_windows_arm64.zip",
+    "os": ["win32"],
+    "cpu": ["arm64"]
+  },
+  {
+    "dir": "packages/frps-linux-amd64",
+    "pkg": "@pkgship/frps-linux-amd64",
+    "bin": "frps",
+    "asset": "frp_{VERSION}_linux_amd64.tar.gz",
+    "os": ["linux"],
+    "cpu": ["x64"]
+  },
+  {
+    "dir": "packages/frps-linux-arm64",
+    "pkg": "@pkgship/frps-linux-arm64",
+    "bin": "frps",
+    "asset": "frp_{VERSION}_linux_arm64.tar.gz",
+    "os": ["linux"],
+    "cpu": ["arm64"]
+  },
+  {
+    "dir": "packages/frps-linux-arm",
+    "pkg": "@pkgship/frps-linux-arm",
+    "bin": "frps",
+    "asset": "frp_{VERSION}_linux_arm.tar.gz",
+    "os": ["linux"],
+    "cpu": ["arm"]
+  },
+  {
+    "dir": "packages/frps-linux-arm-hf",
+    "pkg": "@pkgship/frps-linux-arm-hf",
+    "bin": "frps",
+    "asset": "frp_{VERSION}_linux_arm_hf.tar.gz",
+    "os": ["linux"],
+    "cpu": ["arm"]
+  },
+  {
+    "dir": "packages/frps-linux-riscv64",
+    "pkg": "@pkgship/frps-linux-riscv64",
+    "bin": "frps",
+    "asset": "frp_{VERSION}_linux_riscv64.tar.gz",
+    "os": ["linux"],
+    "cpu": ["riscv64"]
+  },
+  {
+    "dir": "packages/frps-linux-loong64",
+    "pkg": "@pkgship/frps-linux-loong64",
+    "bin": "frps",
+    "asset": "frp_{VERSION}_linux_loong64.tar.gz",
+    "os": ["linux"],
+    "cpu": ["loong64"]
+  },
+  {
+    "dir": "packages/frps-darwin-amd64",
+    "pkg": "@pkgship/frps-darwin-amd64",
+    "bin": "frps",
+    "asset": "frp_{VERSION}_darwin_amd64.tar.gz",
+    "os": ["darwin"],
+    "cpu": ["x64"]
+  },
+  {
+    "dir": "packages/frps-darwin-arm64",
+    "pkg": "@pkgship/frps-darwin-arm64",
+    "bin": "frps",
+    "asset": "frp_{VERSION}_darwin_arm64.tar.gz",
+    "os": ["darwin"],
+    "cpu": ["arm64"]
+  },
+  {
+    "dir": "packages/frps-windows-amd64",
+    "pkg": "@pkgship/frps-windows-amd64",
+    "bin": "frps.exe",
+    "asset": "frp_{VERSION}_windows_amd64.zip",
+    "os": ["win32"],
+    "cpu": ["x64"]
+  },
+  {
+    "dir": "packages/frps-windows-arm64",
+    "pkg": "@pkgship/frps-windows-arm64",
+    "bin": "frps.exe",
+    "asset": "frp_{VERSION}_windows_arm64.zip",
+    "os": ["win32"],
+    "cpu": ["arm64"]
+  }
+]

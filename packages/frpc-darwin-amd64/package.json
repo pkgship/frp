@@ -1,0 +1,23 @@
+{
+  "name": "@pkgship/frpc-darwin-amd64",
+  "version": "0.71.0",
+  "description": "frpc-darwin-amd64",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "frpc"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/fatedier/frp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pkgship/pkg-frp.git"
+  }
+}

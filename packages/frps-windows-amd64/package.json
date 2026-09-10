@@ -1,0 +1,23 @@
+{
+  "name": "@pkgship/frps-windows-amd64",
+  "version": "0.71.0",
+  "description": "frps-windows-amd64",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "frps.exe"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/fatedier/frp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pkgship/pkg-frp.git"
+  }
+}

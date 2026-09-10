@@ -1,0 +1,33 @@
+{
+  "name": "@pkgship/frpc",
+  "version": "0.71.0",
+  "description": "frp client binary for all platforms",
+  "bin": {
+    "frpc": "bin/frpc.js"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "optionalDependencies": {
+    "@pkgship/frpc-linux-amd64": "0.71.0",
+    "@pkgship/frpc-linux-arm64": "0.71.0",
+    "@pkgship/frpc-linux-arm": "0.71.0",
+    "@pkgship/frpc-linux-arm-hf": "0.71.0",
+    "@pkgship/frpc-linux-riscv64": "0.71.0",
+    "@pkgship/frpc-linux-loong64": "0.71.0",
+    "@pkgship/frpc-darwin-amd64": "0.71.0",
+    "@pkgship/frpc-darwin-arm64": "0.71.0",
+    "@pkgship/frpc-windows-amd64": "0.71.0",
+    "@pkgship/frpc-windows-arm64": "0.71.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/fatedier/frp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pkgship/pkg-frp.git"
+  }
+}

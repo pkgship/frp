@@ -303,7 +303,7 @@ async function fetchLatestVersion() {
   const { status, body } = await requestRaw(
     `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
     "GET",
-    { "User-Agent": "pkg-frp-npm", Accept: "application/vnd.github+json" },
+    { "User-Agent": "frp-npm", Accept: "application/vnd.github+json" },
   );
   if (status >= 400)
     throw new Error(`HTTP ${status} while fetching latest release`);
@@ -314,7 +314,7 @@ async function isPublished(pkgName, version) {
   const { status } = await requestRaw(
     `https://registry.npmjs.org/${encodeURIComponent(pkgName)}/${version}`,
     "GET",
-    { "User-Agent": "pkg-frp-npm" },
+    { "User-Agent": "frp-npm" },
   );
   return status >= 200 && status < 300;
 }
@@ -327,7 +327,7 @@ async function fetchAsset(version, assetName) {
   }
   const url = `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${assetName}`;
   const { status, body } = await requestRaw(url, "GET", {
-    "User-Agent": "pkg-frp-npm",
+    "User-Agent": "frp-npm",
   });
   if (status >= 400)
     throw new Error(`HTTP ${status} while downloading ${assetName}`);

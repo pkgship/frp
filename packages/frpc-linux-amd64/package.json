@@ -18,6 +18,6 @@
   "homepage": "https://github.com/fatedier/frp",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pkgship/pkg-frp.git"
+    "url": "git+https://github.com/pkgship/frp.git"
   }
 }

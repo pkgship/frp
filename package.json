@@ -1,5 +1,5 @@
 {
-  "name": "pkg-frp",
+  "name": "frp",
   "version": "0.0.0",
   "private": true,
   "workspaces": [
@@ -13,6 +13,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pkgship/pkg-frp.git"
+    "url": "git+https://github.com/pkgship/frp.git"
   }
 }

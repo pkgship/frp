@@ -26,5 +26,21 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org/
 
-      - name: Sync and publish
+      # Authenticated so the release lookup uses the 5000/hour quota instead of
+      # the anonymous 60/hour one (which returns HTTP 403 once exhausted).
+      - name: Sync packages
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/sync.mjs
+
+      # Platform packages come first, and a version that appeared on the
+      # registry in the meantime is left alone.
+      - name: Publish packages
+        run: |
+          while IFS=$'\t' read -r dir name version; do
+            if npm view "${name}@${version}" version >/dev/null 2>&1 </dev/null; then
+              echo "already published: ${name}@${version}"
+            else
+              npm publish "publish/${dir}" --access public --provenance </dev/null
+            fi
+          done < publish/.packages

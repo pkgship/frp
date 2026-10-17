@@ -1,44 +1,78 @@
 #!/usr/bin/env node
-import { execSync } from "node:child_process";
+import { existsSync, copyFileSync } from "node:fs";
 import {
   chmodSync,
-  existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { connect as netConnect } from "node:net";
 import path from "node:path";
 import { connect as tlsConnect } from "node:tls";
 import { fileURLToPath } from "node:url";
 import { gunzipSync, inflateRawSync } from "node:zlib";
 
+// Sync one upstream frp release into a self-contained publish tree.
+//
+//   @pkgship/frpc-<platform> / @pkgship/frps-<platform>   the raw binary
+//   @pkgship/frpc            / @pkgship/frps              the shim plus one
+//                                                         optionalDependency
+//                                                         per platform
+//
+// The tree is written to <out> (default `publish/`, git-ignored); nothing in
+// the repository is modified and no version is written back to a committed
+// manifest. A version already on the registry is left alone and its binary is
+// never downloaded again, so a partially published release is resumed by
+// re-running this. Publishing is the workflow's job: it walks <out>/.packages
+// (tab separated "<dir>\t<name>\t<version>", platform packages first).
+//
+//   node scripts/sync.mjs [--version <version>] [--out publish]
+//
+// The GitHub release API is rate-limited to 60 requests/hour per IP when
+// unauthenticated; a token raises that to 5000. The token is taken from
+// GITHUB_TOKEN / GH_TOKEN, else discovered from the local `gh` CLI. Set
+// FRP_ASSET_DIR=<dir> to read release assets from disk instead of downloading.
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GITHUB_REPO = "fatedier/frp";
+const SCOPE = "@pkgship";
+const LICENSE = "Apache-2.0";
+const HOMEPAGE = "https://github.com/fatedier/frp";
+const REPOSITORY = { type: "git", url: "git+https://github.com/pkgship/frp.git" };
+
 const MAINS = [
-  { dir: "packages/frpc", pkg: "@pkgship/frpc", cmd: "frpc" },
-  { dir: "packages/frps", pkg: "@pkgship/frps", cmd: "frps" },
+  { cmd: "frpc", pkg: "@pkgship/frpc", dir: "packages/frpc", desc: "frp client" },
+  { cmd: "frps", pkg: "@pkgship/frps", dir: "packages/frps", desc: "frp server" },
 ];
+
+// Single source of truth for the published platforms: package suffix, Node
+// os/cpu (what npm matches optional dependencies against), the binary each
+// package ships, and the upstream release asset it is extracted from.
 const PLATFORMS = JSON.parse(
   readFileSync(path.join(ROOT, "scripts", "platforms.json"), "utf8"),
 );
 
-const noPublish = process.argv.includes("--no-publish");
-const versionIndex = process.argv.indexOf("--version");
-const versionOverride =
-  versionIndex >= 0 ? process.argv[versionIndex + 1] : undefined;
+const options = { version: null, out: "publish" };
+const argv = process.argv.slice(2);
+for (let i = 0; i < argv.length; i++) {
+  const arg = argv[i];
+  if (arg === "--version") options.version = argv[++i];
+  else if (arg === "--out") options.out = argv[++i];
+  else {
+    console.error(`error: unknown option ${arg}`);
+    process.exit(1);
+  }
+}
 
-// ── Zip constants ──────────────────────────────────────────────────────
+// ── Zip / tar constants ────────────────────────────────────────────────
 const SIG_EOCD = 0x06054b50;
 const SIG_CENTRAL = 0x02014b50;
 const SIG_LOCAL = 0x04034b50;
 
-function u16(buf, off) {
-  return buf.readUInt16LE(off);
-}
-function u32(buf, off) {
-  return buf.readUInt32LE(off);
-}
+const u16 = (buf, off) => buf.readUInt16LE(off);
+const u32 = (buf, off) => buf.readUInt32LE(off);
 
 // ── HTTP client (zero dependencies) ────────────────────────────────────
 export function isProxiedHost(hostname) {
@@ -52,11 +86,11 @@ export function isProxiedHost(hostname) {
     return false;
   return Boolean(
     process.env.HTTPS_PROXY ||
-    process.env.https_proxy ||
-    process.env.HTTP_PROXY ||
-    process.env.http_proxy ||
-    process.env.ALL_PROXY ||
-    process.env.all_proxy,
+      process.env.https_proxy ||
+      process.env.HTTP_PROXY ||
+      process.env.http_proxy ||
+      process.env.ALL_PROXY ||
+      process.env.all_proxy,
   );
 }
 
@@ -299,14 +333,51 @@ async function requestOnce(targetUrl, method, requestHeaders, maxRedirects) {
 }
 
 // ── GitHub / npm ───────────────────────────────────────────────────────
+let tokenCache;
+function githubToken() {
+  if (tokenCache !== undefined) return tokenCache;
+  const fromEnv = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (fromEnv) {
+    tokenCache = fromEnv;
+    return tokenCache;
+  }
+  // Fall back to the local GitHub CLI login so a plain `node scripts/sync.mjs`
+  // on a developer machine uses the authenticated 5000/hour quota instead of
+  // the anonymous 60/hour one (which returns HTTP 403 once exhausted).
+  try {
+    const out = execFileSync("gh", ["auth", "token"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    tokenCache = out || null;
+  } catch {
+    tokenCache = null;
+  }
+  return tokenCache;
+}
+
+function githubAuthHeaders() {
+  const token = githubToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function fetchLatestVersion() {
   const { status, body } = await requestRaw(
     `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
     "GET",
-    { "User-Agent": "frp-npm", Accept: "application/vnd.github+json" },
+    {
+      "User-Agent": "frp-npm",
+      Accept: "application/vnd.github+json",
+      ...githubAuthHeaders(),
+    },
   );
-  if (status >= 400)
-    throw new Error(`HTTP ${status} while fetching latest release`);
+  if (status >= 400) {
+    const reason =
+      status === 403 || status === 429
+        ? `${status} (GitHub API rate limit; set GITHUB_TOKEN/GH_TOKEN or run \`gh auth login\`)`
+        : String(status);
+    throw new Error(`HTTP ${reason} while fetching latest release`);
+  }
   return String(JSON.parse(body.toString("utf8")).tag_name).replace(/^v/, "");
 }
 
@@ -424,194 +495,186 @@ function isExecutable(buf) {
   return false;
 }
 
-// ── Platform preparation ───────────────────────────────────────────────
-async function preparePlatform(platform, version) {
-  const assetName = platform.asset.replace("{VERSION}", version);
-  const isZip = assetName.endsWith(".zip");
-
-  // Check if all binaries for this platform are already present
-  const allPresent = MAINS.every((main) => {
-    const binName =
-      main.cmd + (isZip && platform.os[0] === "win32" ? ".exe" : "");
-    const binPath = path.join(ROOT, platform.dir, binName);
-    const markerPath = path.join(ROOT, platform.dir, `.${main.cmd}-version`);
-    return (
-      existsSync(binPath) &&
-      existsSync(markerPath) &&
-      readFileSync(markerPath, "utf8").trim() === version &&
-      isExecutable(readFileSync(binPath))
-    );
-  });
-
-  if (allPresent) {
-    console.log(
-      `[sync] binaries already present for ${platform.pkg} @ ${version} - skipping`,
-    );
-    return;
-  }
-
-  console.log(`[sync] downloading ${assetName}`);
-  const raw = await fetchAsset(version, assetName);
-
-  mkdirSync(path.join(ROOT, platform.dir), { recursive: true });
-
-  for (const main of MAINS) {
-    const binName =
-      main.cmd + (isZip && platform.os[0] === "win32" ? ".exe" : "");
-    const binPath = path.join(ROOT, platform.dir, binName);
-    const markerPath = path.join(ROOT, platform.dir, `.${main.cmd}-version`);
-
-    if (
-      existsSync(binPath) &&
-      existsSync(markerPath) &&
-      readFileSync(markerPath, "utf8").trim() === version &&
-      isExecutable(readFileSync(binPath))
-    ) {
-      console.log(
-        `[sync] ${binName} already present for ${version} - skipping`,
-      );
-      continue;
-    }
-
-    let binary = null;
-    if (isZip) {
-      binary = extractFromZip(raw, binName);
+// An upstream asset holds both frpc and frps; download and decompress it once
+// per run and extract whichever binaries are still needed.
+const assetCache = new Map();
+async function extractBinary(version, assetName, binName) {
+  let binaries = assetCache.get(assetName);
+  if (!binaries) {
+    console.log(`[sync] downloading ${assetName}`);
+    const raw = await fetchAsset(version, assetName);
+    binaries = new Map();
+    if (assetName.endsWith(".zip")) {
+      for (const name of ["frpc.exe", "frps.exe"]) {
+        const b = extractFromZip(raw, name);
+        if (b) binaries.set(name, b);
+      }
     } else {
-      // tar.gz: gunzip then search tar
       const tarBuf = gunzipSync(raw);
-      binary = extractFromTar(tarBuf, binName);
+      for (const name of ["frpc", "frps"]) {
+        const b = extractFromTar(tarBuf, name);
+        if (b) binaries.set(name, b);
+      }
     }
-
-    if (!binary || !isExecutable(binary)) {
-      throw new Error(`Failed to extract valid ${binName} from ${assetName}`);
-    }
-
-    writeFileSync(binPath, binary);
-    chmodSync(binPath, 0o755);
-    writeFileSync(markerPath, version + "\n");
-    console.log(
-      `[sync] wrote ${binName} (${(binary.length / 1024 / 1024).toFixed(1)} MiB)`,
-    );
+    assetCache.set(assetName, binaries);
   }
+  return binaries.get(binName) ?? null;
 }
 
-async function preparePlatformWithRetry(platform, version) {
+function writeJson(file, data) {
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify(data, null, 2) + "\n");
+}
+
+// One platform package: the raw binary at the package root plus the manifest
+// npm matches against the install environment.
+async function buildPlatform(platform, version, out) {
+  const asset = platform.asset.replace("{VERSION}", version);
+  const dir = path.join(out, platform.pkg);
+
+  const binary = await extractBinary(version, asset, platform.bin);
+  if (!binary || !isExecutable(binary)) {
+    throw new Error(`Failed to extract valid ${platform.bin} from ${asset}`);
+  }
+
+  writeJson(path.join(dir, "package.json"), {
+    name: platform.pkg,
+    version,
+    description: `${platform.bin} binary for ${platform.pkg.slice(SCOPE.length + 1)}`,
+    license: LICENSE,
+    homepage: HOMEPAGE,
+    repository: REPOSITORY,
+    os: platform.os,
+    cpu: platform.cpu,
+    files: [platform.bin],
+    publishConfig: { access: "public" },
+  });
+
+  mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, platform.bin);
+  writeFileSync(file, binary);
+  // Downloaded assets do not carry the executable bit, and npm publishes
+  // exactly the modes it finds on disk.
+  chmodSync(file, 0o755);
+
+  console.log(
+    `[sync] wrote ${platform.pkg} (${(binary.length / 1024 / 1024).toFixed(1)} MiB)`,
+  );
+  return dir;
+}
+
+async function buildPlatformWithRetry(platform, version, out) {
   for (let attempt = 1; ; attempt++) {
     try {
-      return await preparePlatform(platform, version);
+      return await buildPlatform(platform, version, out);
     } catch (err) {
       if (attempt >= 3 || !isRetryable(err)) throw err;
       console.log(
-        `[sync] retrying ${platform.dir} (${attempt + 1}/3) after error: ${String(err?.message || err?.code || "")}`,
+        `[sync] retrying ${platform.pkg} (${attempt + 1}/3) after error: ${String(err?.message || err?.code || "")}`,
       );
       await sleep(attempt * 1000);
     }
   }
 }
 
-// ── Version + publish ──────────────────────────────────────────────────
-function setPackageVersion(pkgPath, version, optionalDeps) {
-  const pkgFile = path.join(ROOT, pkgPath, "package.json");
-  const pkg = JSON.parse(readFileSync(pkgFile, "utf8"));
-  pkg.version = version;
-  if (optionalDeps)
-    pkg.optionalDependencies = { ...pkg.optionalDependencies, ...optionalDeps };
-  writeFileSync(pkgFile, JSON.stringify(pkg, null, 2) + "\n");
+function platformsFor(cmd) {
+  return PLATFORMS.filter(
+    (p) => p.bin === cmd || p.bin === `${cmd}.exe`,
+  );
 }
 
-function publishPackage(dir) {
-  const provenance =
-    process.env.GITHUB_ACTIONS === "true" ? " --provenance" : "";
-  console.log(`[sync] publishing ${path.join(ROOT, dir)}`);
-  execSync(`npm publish --access public${provenance}`, {
-    cwd: path.join(ROOT, dir),
-    stdio: "inherit",
-  });
-}
+// The shim package: copy bin/lib + write the stamped manifest into the tree.
+function buildMain(main, version, out) {
+  const src = path.join(ROOT, main.dir);
+  const dir = path.join(out, main.pkg);
+  const manifest = JSON.parse(
+    readFileSync(path.join(src, "package.json"), "utf8"),
+  );
 
-// ── Main ───────────────────────────────────────────────────────────────
-async function main() {
-  const version = versionOverride ?? (await fetchLatestVersion());
-  if (!/^\d+\.\d+\.\d+/.test(version)) {
-    throw new Error(`Unexpected version string: ${version}`);
+  const deps = Object.fromEntries(
+    platformsFor(main.cmd).map((p) => [p.pkg, version]),
+  );
+  const expected = Object.keys(deps).sort().join();
+  const declared = Object.keys(manifest.optionalDependencies || {}).sort().join();
+  if (expected !== declared) {
+    throw new Error(
+      `${main.dir}/package.json optionalDependencies no longer match scripts/platforms.json`,
+    );
   }
+
+  manifest.version = version;
+  for (const name of Object.keys(manifest.optionalDependencies)) {
+    manifest.optionalDependencies[name] = version;
+  }
+
+  for (const rel of [`bin/${main.cmd}.js`, "lib/platform.js"]) {
+    const from = path.join(src, rel);
+    const to = path.join(dir, rel);
+    mkdirSync(path.dirname(to), { recursive: true });
+    copyFileSync(from, to);
+  }
+  writeFileSync(
+    path.join(dir, "README.md"),
+    `# ${main.pkg}\n\n` +
+      `The [frp](https://github.com/fatedier/frp) ${main.desc} binary, installed for the current platform as an npm package.\n\n` +
+      `\`\`\`bash\nnpx ${main.pkg} -h\n\`\`\`\n`,
+  );
+  writeJson(path.join(dir, "package.json"), manifest);
+
+  console.log(`[sync] wrote ${main.pkg}@${version}`);
+  return dir;
+}
+
+async function main() {
+  const version = options.version ?? (await fetchLatestVersion());
+  if (!/^\d+\.\d+\.\d+/.test(version)) {
+    throw new Error(`unexpected version string: ${version}`);
+  }
+
+  const out = path.resolve(options.out);
+  rmSync(out, { recursive: true, force: true });
+  mkdirSync(out, { recursive: true });
+
   console.log(`[sync] frp version: ${version}`);
 
-  // Check what's already published
-  const platformPublished = new Map();
+  const entries = [];
   for (const platform of PLATFORMS) {
-    platformPublished.set(
-      platform.pkg,
-      await isPublished(platform.pkg, version),
-    );
-  }
-  const mainsPublished = new Map();
-  for (const main of MAINS) {
-    mainsPublished.set(main.pkg, await isPublished(main.pkg, version));
-  }
-
-  // --no-publish: download + stamp only
-  if (noPublish) {
-    for (const platform of PLATFORMS) {
-      await preparePlatformWithRetry(platform, version);
-    }
-    for (const platform of PLATFORMS) {
-      setPackageVersion(platform.dir, version);
-    }
-    for (const main of MAINS) {
-      const deps = Object.fromEntries(
-        PLATFORMS.filter(
-          (p) => p.bin === main.cmd || p.bin === main.cmd + ".exe",
-        ).map((p) => [p.pkg, version]),
-      );
-      setPackageVersion(main.dir, version, deps);
-    }
-    console.log(
-      `[sync] prepared binaries for ${version} (publish skipped due to --no-publish)`,
-    );
-    return;
-  }
-
-  // Check if everything is already published
-  if (
-    [...mainsPublished.values()].every(Boolean) &&
-    [...platformPublished.values()].every(Boolean)
-  ) {
-    console.log(
-      `[sync] all packages @${version} already published - nothing to do`,
-    );
-    process.exit(0);
-  }
-
-  // Publish platform packages
-  for (const platform of PLATFORMS) {
-    if (platformPublished.get(platform.pkg)) {
-      console.log(
-        `[sync] ${platform.pkg}@${version} already published - skipping`,
-      );
+    if (await isPublished(platform.pkg, version)) {
+      console.log(`[sync] ${platform.pkg}@${version} already published - skipping`);
       continue;
     }
-    await preparePlatformWithRetry(platform, version);
-    setPackageVersion(platform.dir, version);
-    publishPackage(platform.dir);
+    entries.push([
+      platform.pkg,
+      await buildPlatformWithRetry(platform, version, out),
+    ]);
   }
 
-  // Publish main packages
   for (const main of MAINS) {
-    const deps = Object.fromEntries(
-      PLATFORMS.filter(
-        (p) => p.bin === main.cmd || p.bin === main.cmd + ".exe",
-      ).map((p) => [p.pkg, version]),
-    );
-    setPackageVersion(main.dir, version, deps);
-    if (mainsPublished.get(main.pkg)) {
+    if (await isPublished(main.pkg, version)) {
       console.log(`[sync] ${main.pkg}@${version} already published - skipping`);
-    } else {
-      publishPackage(main.dir);
+      continue;
     }
+    entries.push([main.pkg, buildMain(main, version, out)]);
   }
 
-  console.log(`[sync] done: published all packages @${version}`);
+  // Written even when there is nothing to publish, so the workflow can read it
+  // unconditionally.
+  writeFileSync(
+    path.join(out, ".packages"),
+    entries.length
+      ? `${entries
+          .map(([name, dir]) =>
+            [path.relative(out, dir).split(path.sep).join("/"), name, version].join("\t"),
+          )
+          .join("\n")}\n`
+      : "",
+  );
+
+  console.log(
+    entries.length
+      ? `[sync] frp ${version}: prepared ${entries.length} packages in ${path.relative(process.cwd(), out)}`
+      : `[sync] frp ${version} is already on the registry - nothing to do`,
+  );
 }
 
 const isMain =

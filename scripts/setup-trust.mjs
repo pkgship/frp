@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,26 +10,16 @@ const FILE = "publish-npm.yml";
 
 const dryRun = process.argv.includes("--dry-run");
 
+// The packages sync.mjs publishes: the per-platform binaries, then the two
+// shims that depend on them. Platform packages are generated into publish/ at
+// build time, so the list comes from scripts/platforms.json rather than the
+// repository tree.
 function discoverPackages() {
-  const dirs = readdirSync(path.join(ROOT, "packages"), {
-    withFileTypes: true,
-  })
-    .filter((d) => d.isDirectory())
-    .map((d) => d.name);
-
-  const packages = [];
-  for (const dir of dirs) {
-    const pkgPath = path.join(ROOT, "packages", dir, "package.json");
-    try {
-      const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-      if (!pkg.private && pkg.name) {
-        packages.push(pkg.name);
-      }
-    } catch {
-      // skip dirs without valid package.json
-    }
-  }
-  return packages;
+  const platforms = JSON.parse(
+    readFileSync(path.join(ROOT, "scripts", "platforms.json"), "utf8"),
+  );
+  const mains = ["@pkgship/frpc", "@pkgship/frps"];
+  return [...platforms.map((p) => p.pkg), ...mains];
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
